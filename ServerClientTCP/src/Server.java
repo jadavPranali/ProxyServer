@@ -1,11 +1,9 @@
-
 import java.io.*;
 import java.net.*;
 
 public class Server {
 	public static void main(String[] args1) {
-		try {
-			ServerSocket ss = new ServerSocket(5525);
+		try (ServerSocket ss = new ServerSocket(5525)) {
 			Socket s = ss.accept();
 
 			DataInputStream dataIn = new DataInputStream(s.getInputStream());
@@ -28,6 +26,5 @@ public class Server {
 			System.exit(1);
 
 		}
-
 	}
 }
