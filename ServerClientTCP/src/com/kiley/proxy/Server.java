@@ -1,22 +1,24 @@
+package com.kiley.proxy;
 import java.io.*;
 import java.net.*;
+import java.util.Scanner;
 
 public class Server {
 	public static void main(String[] args1) {
 		try (ServerSocket ss = new ServerSocket(5525)) {
 			Socket s = ss.accept();
 
-			DataInputStream dataIn = new DataInputStream(s.getInputStream());
-			DataOutputStream dataOut = new DataOutputStream(s.getOutputStream());
+			ObjectInputStream dataIn = new ObjectInputStream(new BufferedInputStream(s.getInputStream()));
+			ObjectOutputStream dataOut = new ObjectOutputStream(new BufferedOutputStream(s.getOutputStream()));
 
-			BufferedReader conIn = new BufferedReader(new InputStreamReader(System.in));
+			Scanner conIn = new Scanner(System.in);
 
 			String MsgIn = "", MsgOut = "";
 
 			while (!MsgIn.equals("end")) {
 				MsgIn = dataIn.readUTF();
 				System.out.println(MsgIn);
-				MsgOut = conIn.readLine();
+				MsgOut = conIn.nextLine();
 				dataOut.writeUTF(MsgOut);
 				dataOut.flush();
 			}
