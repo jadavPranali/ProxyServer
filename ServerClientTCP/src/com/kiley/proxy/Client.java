@@ -1,8 +1,8 @@
 package com.kiley.proxy;
 
-//reader and stream imports
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -12,7 +12,6 @@ import java.util.Scanner;
 
 import com.kiley.proxy.cmds.CmdConnect;
 import com.kiley.proxy.cmds.CmdConnected;
-import com.kiley.proxy.cmds.CmdCrash;
 import com.kiley.proxy.cmds.CmdMessage;
 
 public class Client {
@@ -34,14 +33,11 @@ public class Client {
 	private static final String READY_MENU_TITLE = "Connected to Server";
 	private static final String READY_MENU_OPTION_CHAT_REGEX = "1";
 	private static final String READY_MENU_OPTION_EXIT_REGEX = "2";
-	private static final String READY_MENU_OPTION_CRASH_REGEX = "3";
 	private static final String READY_MENU_OPTION_CHAT = "Send Message to the Server";
 	private static final String READY_MENU_OPTION_EXIT = "Disconnect from Server";
-	private static final String READY_MENU_OPTION_CRASH = "Crash the Server";
 	private static final String[] READY_MENU_OPTIONS = new String[] {
 			READY_MENU_OPTION_CHAT_REGEX + ") " + READY_MENU_OPTION_CHAT,
-			READY_MENU_OPTION_EXIT_REGEX + ") " + READY_MENU_OPTION_EXIT,
-			READY_MENU_OPTION_CRASH_REGEX + ") " + READY_MENU_OPTION_CRASH };
+			READY_MENU_OPTION_EXIT_REGEX + ") " + READY_MENU_OPTION_EXIT };
 
 	private static final String READY_MENU_CHAT = "Enter your Message";
 
@@ -49,6 +45,7 @@ public class Client {
 
 	private ObjectInputStream objIn;
 	private ObjectOutputStream objOut;
+	private Socket socket;
 
 	public Client() {
 		this.startMainMenu();
@@ -67,6 +64,7 @@ public class Client {
 			} else if (input.contains(MAIN_MENU_OPTION_PROXY_REGEX)) {
 				this.startProxyConnectMenu();
 			}
+		} catch (EOFException e) {
 		} catch (UnknownHostException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -80,21 +78,31 @@ public class Client {
 		System.out.print(this.formatDirectConnectMenu());
 		String input = this.scan.next();
 		try (Socket socket = new Socket(input, Ports.MAIN_PORT)) {
-			this.objIn = new ObjectInputStream(new BufferedInputStream(socket.getInputStream()));
+			this.socket = socket;
 			this.objOut = new ObjectOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+			this.objOut.flush();
+			this.objIn = new ObjectInputStream(new BufferedInputStream(socket.getInputStream()));
 
 			this.startReadyMenu();
+		} finally {
+			this.objIn = null;
+			this.objOut = null;
 		}
 	}
 
 	private void startProxyConnectMenu() throws UnknownHostException, IOException, ClassNotFoundException {
 		System.out.print(this.formatProxyConnectMenu());
 		String input = this.scan.next();
-		try (Socket socket = new Socket(input, Ports.MAIN_PORT)) {
-			this.objIn = new ObjectInputStream(new BufferedInputStream(socket.getInputStream()));
+		try (Socket socket = new Socket(input, Ports.PROXY_PORT)) {
+			this.socket = socket;
 			this.objOut = new ObjectOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+			this.objOut.flush();
+			this.objIn = new ObjectInputStream(new BufferedInputStream(socket.getInputStream()));
 
 			this.startProxyReadyMenu();
+		} finally {
+			this.objIn = null;
+			this.objOut = null;
 		}
 	}
 
@@ -102,6 +110,7 @@ public class Client {
 		System.out.print(this.formatProxyReadyMenu());
 		String inputFromScanner = this.scan.next();
 		this.objOut.writeObject(new CmdConnect(inputFromScanner));
+		this.objOut.flush();
 		Object inputFromProxy = this.objIn.readObject();
 		if (inputFromProxy.getClass().equals(CmdConnected.class)) {
 			CmdConnected cmd = (CmdConnected) inputFromProxy;
@@ -119,17 +128,19 @@ public class Client {
 			String inputFromScanner = this.scan.next();
 			if (inputFromScanner.contains(READY_MENU_OPTION_CHAT_REGEX)) {
 				System.out.print(this.formatReadyMenuChat());
+				this.scan.nextLine();
 				inputFromScanner = this.scan.nextLine();
 				this.objOut.writeObject(new CmdMessage(inputFromScanner));
+				this.objOut.flush();
+				if(this.socket.isClosed()) {
+					break;
+				}
 				Object inputFromServer = this.objIn.readObject();
 				if (inputFromServer.getClass().equals(CmdMessage.class)) {
 					CmdMessage cmd = (CmdMessage) inputFromServer;
 					System.out.print(this.formatMessage(cmd.getMsg()));
 				}
 			} else if (inputFromScanner.contains(READY_MENU_OPTION_EXIT_REGEX)) {
-				readyLoop = false;
-			} else if (inputFromScanner.contains(READY_MENU_OPTION_CRASH_REGEX)) {
-				this.objOut.writeObject(new CmdCrash());
 				readyLoop = false;
 			}
 		}
@@ -178,30 +189,5 @@ public class Client {
 	public static void main(String[] args) {
 		Client client = new Client();
 		client.close();
-		// try (Socket s = new Socket("localhost", 5525)) {
-		// ObjectInputStream dataIn = new ObjectInputStream(new
-		// BufferedInputStream(s.getInputStream()));
-		// ObjectOutputStream dataOut = new ObjectOutputStream(new
-		// BufferedOutputStream(s.getOutputStream()));
-		//
-		// String MsgIn = "", MsgOut = "";
-		//
-		// System.out.println("IP to connect to: ");
-		//
-		// String ip = conIn.next();
-		//
-		// dataOut.writeObject(new CmdConnect(ip));
-		//
-		// while (!MsgIn.equals("end")) {
-		// MsgOut = conIn.nextLine();
-		// dataOut.writeUTF(MsgOut);
-		// MsgIn = dataIn.readUTF();
-		// System.out.println(MsgIn);
-		// }
-		// } catch (Exception e) {
-		// System.out.println(e.getMessage());
-		// System.exit(1);
-		//
-		// }
 	}
 }

@@ -2,75 +2,83 @@ package com.kiley.proxy;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.UnknownHostException;
 
 import com.kiley.proxy.cmds.CmdConnect;
-import com.kiley.proxy.cmds.CmdMessage;
+import com.kiley.proxy.cmds.CmdConnected;
 
 public class Proxy {
-	public static void main(String[] args) {
-		try (ServerSocket proxyServerSocket = new ServerSocket(5525);
-				Socket proxyToServerSocket = new Socket("localhost", 5525)) {
-			ObjectInputStream servertToProxy = new ObjectInputStream(
-					new BufferedInputStream(proxyToServerSocket.getInputStream()));
-			ObjectOutputStream proxyToServer = new ObjectOutputStream(
-					new BufferedOutputStream(proxyToServerSocket.getOutputStream()));
+	public Proxy() {
+		boolean listening = true;
 
-			Socket clientToProxySocket = proxyServerSocket.accept();
+		while (listening) {
+			try (ServerSocket serverSocket = new ServerSocket(Ports.PROXY_PORT)) {
+				Socket clientSocket = serverSocket.accept();
 
-			ObjectInputStream clientToProxy = new ObjectInputStream(
-					new BufferedInputStream(clientToProxySocket.getInputStream()));
-			ObjectOutputStream proxyToClient = new ObjectOutputStream(
-					new BufferedOutputStream(clientToProxySocket.getOutputStream()));
+				ObjectOutputStream proxyToClient = new ObjectOutputStream(
+						new BufferedOutputStream(clientSocket.getOutputStream()));
+				proxyToClient.flush();
+				ObjectInputStream clientToProxy = new ObjectInputStream(
+						new BufferedInputStream(clientSocket.getInputStream()));
 
-			while (true) {
-				Object cmd = clientToProxy.readObject();
-				if (cmd.getClass() == CmdConnect.class) {
-					CmdConnect cmdCon = (CmdConnect) cmd;
+				Object inputFromClient = clientToProxy.readObject();
+				if (inputFromClient.getClass().equals(CmdConnect.class)) {
+					CmdConnect cmd = (CmdConnect) inputFromClient;
 
-				} else if (cmd.getClass() == CmdMessage.class) {
-					CmdMessage cmdMsg = (CmdMessage) cmd;
-					
-				} else {
-					System.out.println("Unhandled Cmd");
+					boolean setup = false;
+
+					try (Socket socketToServer = new Socket(cmd.getTargetIp(), Ports.MAIN_PORT)) {
+						ObjectOutputStream proxyToServer = new ObjectOutputStream(
+								new BufferedOutputStream(socketToServer.getOutputStream()));
+						proxyToServer.flush();
+						ObjectInputStream serverToProxy = new ObjectInputStream(
+								new BufferedInputStream(socketToServer.getInputStream()));
+
+						proxyToClient.writeObject(new CmdConnected(true));
+						proxyToClient.flush();
+						setup = true;
+
+						boolean proxyLoop = true;
+
+						while (proxyLoop) {
+							if(clientSocket.isClosed()) {
+								break;
+							}
+							System.out.println("Client To Server");
+							proxyToServer.writeObject(clientToProxy.readObject());
+							System.out.println("Flushing");
+							proxyToServer.flush();
+
+							if(socketToServer.isClosed()) {
+								break;
+							}
+							System.out.println("Server to Client");
+							proxyToClient.writeObject(serverToProxy.readObject());
+							System.out.println("Flushing");
+							proxyToClient.flush();
+						}
+					} finally {
+						if (setup) {
+							proxyToClient.writeObject(new CmdConnected(false));
+							proxyToClient.flush();
+						}
+					}
 				}
+			} catch (EOFException e) {
+			} catch (IOException e) {
+				e.printStackTrace();
+			} catch (ClassNotFoundException e) {
+				e.printStackTrace();
 			}
-		} catch (UnknownHostException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
 		}
 	}
 
-	private ServerSocket serverSocketToClient;
-
-	private Socket socketToClient;
-
-	private ObjectInputStream clientToProxy;
-	private ObjectOutputStream proxyToClient;
-
-	private Socket socketToServer;
-
-	private ObjectInputStream serverToProxy;
-	private ObjectOutputStream proxyToServer;
-
-	public Proxy(int port) throws IOException {
-		this.setupServerSocket(port);
+	public static void main(String[] args) {
+		new Proxy();
 	}
-
-	private void setupServerSocket(int port) throws IOException {
-		this.serverSocketToClient = new ServerSocket(port);
-	}
-
-	public void waitForConnect() throws IOException {
-		this.socketToClient = this.serverSocketToClient.accept();
-	}
-
 }
