@@ -1,17 +1,16 @@
 package com.kiley.proxy;
+
 import java.io.*;
 import java.net.*;
 import java.util.Scanner;
 
 public class Server {
 	public static void main(String[] args1) {
-		try (ServerSocket ss = new ServerSocket(5525)) {
+		try (ServerSocket ss = new ServerSocket(5525); Scanner conIn = new Scanner(System.in)) {
 			Socket s = ss.accept();
 
 			ObjectInputStream dataIn = new ObjectInputStream(new BufferedInputStream(s.getInputStream()));
 			ObjectOutputStream dataOut = new ObjectOutputStream(new BufferedOutputStream(s.getOutputStream()));
-
-			Scanner conIn = new Scanner(System.in);
 
 			String MsgIn = "", MsgOut = "";
 

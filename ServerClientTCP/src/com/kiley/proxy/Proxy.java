@@ -1,4 +1,5 @@
 package com.kiley.proxy;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -29,11 +30,12 @@ public class Proxy {
 
 			while (true) {
 				Object cmd = clientToProxy.readObject();
-				if(cmd.getClass() == CmdConnect.class) {
-					CmdConnect cmdCon = (CmdConnect)cmd;
+				if (cmd.getClass() == CmdConnect.class) {
+					CmdConnect cmdCon = (CmdConnect) cmd;
+
+				} else if (cmd.getClass() == CmdMessage.class) {
+					CmdMessage cmdMsg = (CmdMessage) cmd;
 					
-				} else if(cmd.getClass() == CmdMessage.class) {
-					CmdMessage cmdMsg = (CmdMessage)cmd;
 				} else {
 					System.out.println("Unhandled Cmd");
 				}
@@ -46,30 +48,29 @@ public class Proxy {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private ServerSocket serverSocketToClient;
-	
+
 	private Socket socketToClient;
-	
+
 	private ObjectInputStream clientToProxy;
 	private ObjectOutputStream proxyToClient;
-	
+
 	private Socket socketToServer;
-	
+
 	private ObjectInputStream serverToProxy;
 	private ObjectOutputStream proxyToServer;
-	
+
 	public Proxy(int port) throws IOException {
 		this.setupServerSocket(port);
 	}
-	
+
 	private void setupServerSocket(int port) throws IOException {
-		this.serverSocketToClient = new ServerSocket(port);	
+		this.serverSocketToClient = new ServerSocket(port);
 	}
-	
+
 	public void waitForConnect() throws IOException {
 		this.socketToClient = this.serverSocketToClient.accept();
 	}
-	
-	
+
 }
